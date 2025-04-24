@@ -5,12 +5,13 @@ import { NotificationService } from './notification.service';
 import { NotificationController } from './notification.controller';
 import { RabbitMQModule } from '../rabbitmq/rabbitmq.module';  
 import { WebSocketModule } from '../websocket/websocket.module';
+import { WebSocketGateway } from '../websocket/websocket.gateway'; 
 
 @Module({
   imports: [TypeOrmModule.forFeature([Notification]),
   RabbitMQModule,  // Adicione esta linha
   WebSocketModule,],
-  providers: [NotificationService],
+  providers: [NotificationService, WebSocketGateway],
   controllers: [NotificationController],
 })
 export class NotificationModule {}

@@ -15,7 +15,7 @@ export class NotificationService implements OnModuleInit {
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
     private readonly rabbitMQService: RabbitMQService,
-    private readonly webSocketGateway: WebSocketGateway,
+    private websocketGateway: WebSocketGateway,
   ) {}
 
   async onModuleInit() {
@@ -34,7 +34,7 @@ export class NotificationService implements OnModuleInit {
             content: msg.content
           });
 
-          const sent = this.webSocketGateway.sendNotification(
+          const sent = this.websocketGateway.sendNotification(
             notification.recipientId, 
             notification
           );
@@ -66,6 +66,11 @@ export class NotificationService implements OnModuleInit {
 
       const savedNotification = await this.notificationRepository.save(notification);
       this.logger.log(`Notification created: ${savedNotification.id}`);
+      const sent = this.websocketGateway.sendNotification(
+        savedNotification.recipientId,
+        savedNotification,
+      );
+      this.logger.log(`WebSocket sendNotification returned: ${sent}`);
       return savedNotification;
     } catch (error) {
       this.logger.error(`Failed to create notification: ${error.message}`, error.stack);

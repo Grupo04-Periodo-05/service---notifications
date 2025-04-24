@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
@@ -10,6 +10,7 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @Post()
+  @HttpCode(201)  // garante status 201
   @ApiOperation({ summary: 'Create notification' })
   @ApiResponse({ status: 201, type: NotificationResponse })
   async create(@Body() createDto: CreateNotificationDto) {

@@ -18,6 +18,8 @@
         "@nestjs/typeorm": "^9.0.1",
         "@nestjs/websockets": "^9.0.0",
         "amqplib": "^0.10.3",
+        "class-transformer": "^0.5.1",
+        "class-validator": "^0.14.1",
         "nodemailer": "^6.7.5",
         "pg": "^8.11.0",
         "rxjs": "^7.5.5",
