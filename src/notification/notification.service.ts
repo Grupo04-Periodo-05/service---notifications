@@ -1,3 +1,4 @@
+// notification.service.ts
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,70 +13,92 @@ export class NotificationService implements OnModuleInit {
   private readonly logger = new Logger(NotificationService.name);
 
   constructor(
+    private readonly rabbitMQService: RabbitMQService,
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
-    private readonly rabbitMQService: RabbitMQService,
     private websocketGateway: WebSocketGateway,
   ) {}
 
   async onModuleInit() {
-    await this.initializeMessageConsumer();
+    setTimeout(() => this.initializeMessageConsumer(), 10000);
   }
 
   private async initializeMessageConsumer() {
     try {
-      this.rabbitMQService.consumeEvents(async (msg) => {
-        try {
-          this.logger.log(`Received message: ${JSON.stringify(msg)}`);
-          
-          const notification = await this.createNotification({
-            type: msg.type,
-            recipientId: msg.recipientId,
-            content: msg.content
-          });
+      await this.rabbitMQService.consumeEvents(async msg => {
+        this.logger.log(`Received message: ${JSON.stringify(msg)}`);
 
-          const sent = this.websocketGateway.sendNotification(
-            notification.recipientId, 
-            notification
-          );
+        // Cria notificação no banco como PENDING
+        const notification = await this.createNotificationEntry({
+          type: msg.type,
+          recipientId: msg.recipientId,
+          content: msg.content,
+        });
 
-          if (!sent) {
-            this.logger.warn(`User ${notification.recipientId} offline, scheduling email fallback`);
-            setTimeout(async () => {
-              await this.sendEmailFallback(notification);
-            }, 5 * 60 * 1000);
-          }
-        } catch (error) {
-          this.logger.error(`Error processing message: ${error.message}`, error.stack);
+        // Tenta envio via WebSocket
+        const sent = await this.websocketGateway.sendNotification(
+          notification.recipientId,
+          notification,
+        );
+
+        if (!sent) {
+          this.logger.warn(`User ${notification.recipientId} offline, fallback por email`);
+          setTimeout(() => this.sendEmailFallback(notification), 5 * 60 * 1000);
         }
       });
     } catch (error) {
       this.logger.error('Failed to initialize RabbitMQ consumer', error.stack);
-      throw error;
+      setTimeout(() => this.initializeMessageConsumer(), 5000);
     }
   }
 
-  async createNotification(createDto: CreateNotificationDto): Promise<Notification> {
-    try {
-      const notification = this.notificationRepository.create({
-        type: createDto.type,
-        recipientId: createDto.recipientId,
-        content: createDto.content,
-        status: NotificationStatus.UNREAD
-      });
+  /** Cria apenas a entry no banco, sem enviar **/
+  private async createNotificationEntry(createDto: CreateNotificationDto) {
+    const notification = this.notificationRepository.create({
+      ...createDto,
+      status: NotificationStatus.PENDING,
+    });
+    return this.notificationRepository.save(notification);
+  }
 
-      const savedNotification = await this.notificationRepository.save(notification);
-      this.logger.log(`Notification created: ${savedNotification.id}`);
-      const sent = this.websocketGateway.sendNotification(
-        savedNotification.recipientId,
-        savedNotification,
-      );
-      this.logger.log(`WebSocket sendNotification returned: ${sent}`);
-      return savedNotification;
-    } catch (error) {
-      this.logger.error(`Failed to create notification: ${error.message}`, error.stack);
-      throw error;
-    }
+  /** Cria e envia imediatamente se online **/
+  async createNotification(createDto: CreateNotificationDto) {
+    const notification = await this.createNotificationEntry(createDto);
+    // Tenta envio em real-time
+    this.websocketGateway.sendNotification(notification.recipientId, notification);
+    return notification;
+  }
+
+  async findPendingByUser(recipientId: string) {
+    return this.notificationRepository.find({
+      where: { recipientId, status: NotificationStatus.PENDING },
+    });
+  }
+
+  async storeOfflineNotification(recipientId: string, data: any) {
+    this.logger.log(`Armazenando offline para ${recipientId}`);
+    const notification = this.notificationRepository.create({
+      recipientId,
+      type: data.type || 'system_notification',
+      content: data.content || {},
+      status: NotificationStatus.PENDING,
+    });
+    await this.notificationRepository.save(notification);
+  }
+
+  async markAsSent(id: string) {
+    await this.notificationRepository.update(id, {
+      status: NotificationStatus.SENT,
+      createdAt: new Date(),
+    });
+  }
+
+  async sendEmailFallback(notification: Notification) {
+    this.logger.log(`Enviando email para ${notification.recipientId}`);
+    // lógica de email aqui
+    await this.notificationRepository.update(notification.id, {
+      status: NotificationStatus.SENT,
+    });
   }
 
   async findOne(id: string): Promise<Notification> {
@@ -95,19 +118,6 @@ export class NotificationService implements OnModuleInit {
     }
   }
 
-  async sendEmailFallback(notification: Notification): Promise<void> {
-    try {
-      // Implement your email sending logic here
-      this.logger.log(`Sending email to ${notification.recipientId}`);
-      
-      await this.notificationRepository.update(notification.id, {
-        status: NotificationStatus.SENT
-      });
-    } catch (error) {
-      this.logger.error(`Failed to send email fallback: ${error.message}`);
-      throw error;
-    }
-  }
 
   async markAsRead(id: string): Promise<Notification> {
     try {
@@ -127,4 +137,6 @@ export class NotificationService implements OnModuleInit {
       throw error;
     }
   }
+
+
 }

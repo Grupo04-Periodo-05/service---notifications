@@ -1,16 +1,9 @@
+// src/notification/dto/create-notification.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-
-export class NotificationContentDto {
-  @ApiProperty()
-  @IsString()
-  taskId: string;
-
-  @ApiProperty()
-  @IsString()
-  taskTitle: string;
-}
+import { NotificationContent } from '../classes/notification-content.class';
+import { NotificationStatus } from '../enums/notification-status.enum';
 
 export class CreateNotificationDto {
   @ApiProperty({ enum: ['task_assigned', 'task_updated', 'group_invite', 'chat_message'] })
@@ -21,8 +14,12 @@ export class CreateNotificationDto {
   @IsString()
   recipientId: string;
 
-  @ApiProperty({ type: () => NotificationContentDto })
+  @ApiProperty({ type: () => NotificationContent })
   @ValidateNested()
-  @Type(() => NotificationContentDto)
-  content: NotificationContentDto;
+  @Type(() => NotificationContent)
+  content: NotificationContent;
+
+  @ApiProperty({ enum: NotificationStatus, required: false })
+  @IsEnum(NotificationStatus)
+  status?: NotificationStatus;
 }

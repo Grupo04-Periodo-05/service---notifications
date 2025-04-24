@@ -1,57 +1,82 @@
-import { WebSocketGateway as NestWebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
+import { WebSocketGateway as NestWebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
-
+import { NotificationService } from '../notification/notification.service';
+import { Inject, forwardRef, Logger } from '@nestjs/common';
 
 @ApiExcludeController()
-@NestWebSocketGateway({ pingTimeout: 60000,  // 1 minuto sem resposta
-    pingInterval: 25000,
-    cors: {
-    origin: '*', // Ou especifique seu front-end (ex: 'http://localhost:3001')
-    methods: ['GET', 'POST']
-  },
-  path: '/ws/socket.io', // Garante que está no endpoint raiz
-  transports: ['websocket']
- })
-
+@NestWebSocketGateway({
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  cors: { origin: '*', methods: ['GET', 'POST'] },
+  path: '/ws/socket.io',
+  transports: ['websocket'],
+  logger: ['error', 'warn', 'log', 'verbose', 'debug'],
+})
 export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
-  private connectedUsers = new Map<string, Socket>();
+  private readonly logger = new Logger(WebSocketGateway.name);
+  private clients: Map<string, Socket> = new Map();
 
-  handleConnection(client: Socket) {
-    const logger = new Logger('WebSocketGateway');
+  constructor(
+    @Inject(forwardRef(() => NotificationService))
+    private readonly notificationService: NotificationService,
+  ) {}
+
+  async handleConnection(client: Socket) {
     const userId = client.handshake.query.userId as string;
-  if (userId) {
-    client.join(userId);
-    this.connectedUsers.set(userId, client);
-  }
-  console.log(`Socket ${client.id} joined room ${userId}`);
+    this.logger.debug(`Cliente conectado: ${client.id}`);
+    this.logger.debug(`userId recebido: ${userId}`);
+    if (userId) {
+      this.clients.set(userId, client);
 
-    // Log básico
-    logger.log(`New connection from: ${client.id}`);
-    
-    // Log detalhado dos headers (modo debug)
-    logger.debug('Handshake Headers:', JSON.stringify({
-      origin: client.handshake.headers.origin,
-      userAgent: client.handshake.headers['user-agent'],
-      host: client.handshake.headers.host
-    }, null, 2));
+      // Enviar notificações pendentes
+      const pending = await this.notificationService.findPendingByUser(userId);
+      this.logger.debug(`Notificações pendentes para ${userId}: ${pending.length}`);
+      for (const note of pending) {
+        client.emit('notification', note);
+        await this.notificationService.markAsSent(note.id);
+      }
+    }
   }
 
   handleDisconnect(client: Socket) {
-    for (const [userId, sock] of this.connectedUsers) {
+    this.logger.debug(`Cliente desconectado: ${client.id}`);
+    for (const [userId, sock] of this.clients.entries()) {
       if (sock.id === client.id) {
-        this.connectedUsers.delete(userId);
-        console.log(`Socket ${client.id} left room ${userId}`);
+        this.clients.delete(userId);
+        this.logger.debug(`Removido mapping para userId ${userId}`);
         break;
       }
     }
   }
 
-  sendNotification(userId: string, notification: any) {
-    console.log(`Emitting notification to room ${userId}:`, notification);
-    this.server.to(userId).emit('notification', notification);
-    return true;
+  async sendNotification(userId: string, notification: any): Promise<boolean> {
+    this.logger.log(`Tentando enviar para ${userId}`);
+    this.logger.debug(`Conteúdo: ${JSON.stringify(notification)}`);
+    const client = this.clients.get(userId);
+    if (client) {
+      client.emit('notification', notification);
+      this.logger.log(`Notificação enviada com sucesso para ${userId}`);
+      // Atualiza status no banco
+      await this.notificationService.markAsSent(notification.id);
+      return true;
+    } else {
+      this.logger.warn(`Usuário ${userId} offline, armazenando notificação`);
+      await this.notificationService.storeOfflineNotification(userId, notification);
+      return false;
+    }
+  }
+
+  @SubscribeMessage('register')
+  async handleRegister(client: Socket, payload: { recipientId: string }) {
+    this.logger.debug(`Registrando via mensagem: ${payload.recipientId}`);
+    this.clients.set(payload.recipientId, client);
+    const pending = await this.notificationService.findPendingByUser(payload.recipientId);
+    this.logger.debug(`Notificações pendentes via register para ${payload.recipientId}: ${pending.length}`);
+    for (const note of pending) {
+      client.emit('notification', note);
+      await this.notificationService.markAsSent(note.id);
+    }
   }
 }
