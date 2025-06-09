@@ -25,6 +25,10 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
+  app.getHttpAdapter().getInstance().get('/', (req, res) => {
+    res.status(200).send('🟢 Notification Service is up');
+  });
+
   await app.listen(3001);
 }
 bootstrap();
