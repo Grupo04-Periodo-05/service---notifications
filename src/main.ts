@@ -1,5 +1,4 @@
 import { ValidationPipe } from '@nestjs/common';
-import { IoAdapter } from '@nestjs/platform-socket.io';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -7,26 +6,25 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // força rejeitar payloads inválidos e transformar JSON→DTO
   app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,            // remove propriedades extras
-    forbidNonWhitelisted: true, // retorna 400 se tiver campo não definido no DTO
-    transform: true,            // converte payloads para instâncias de DTO
+    whitelist: true,            
+    forbidNonWhitelisted: true, 
+    transform: true,            
   }));
-
-  app.useWebSocketAdapter(new IoAdapter(app));
 
   const config = new DocumentBuilder()
     .setTitle('Notification Service')
-    .setDescription('Microserviço de Notificações')
+    .setDescription('Microserviço de Notificações e E-mails')
     .setVersion('1.0')
     .addTag('notifications')
+    .addTag('emails')
     .build();
+
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
   app.getHttpAdapter().getInstance().get('/', (req, res) => {
-    res.status(200).send('🟢 Notification Service is up');
+    res.status(200).send('🟢 Notification Service is running');
   });
 
   await app.listen(3001);

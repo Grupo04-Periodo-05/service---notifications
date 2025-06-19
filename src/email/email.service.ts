@@ -21,16 +21,12 @@ export class EmailService implements OnModuleInit {
         pass: process.env.EMAIL_PASS,
       },
     });
-
-    this.logger.log('SMTP transporter configurado com Mailjet');
   }
 
   async onModuleInit() {
-    this.logger.log('Inicializando consumidor da fila email_queue...');
 
     try {
       await this.rabbitMQService.consume('email_queue', async (msg) => {
-        this.logger.log(`Mensagem recebida na fila email_queue: ${JSON.stringify(msg)}`);
 
         if (!msg || !msg.to || !msg.type) {
           this.logger.error('Mensagem inválida na fila email_queue. Dados:', msg);
@@ -44,7 +40,6 @@ export class EmailService implements OnModuleInit {
         }
       });
 
-      this.logger.log('Consumer da fila email_queue iniciado com sucesso.');
     } catch (err) {
       this.logger.error('Erro ao iniciar consumer da fila email_queue', err);
     }
@@ -53,7 +48,6 @@ export class EmailService implements OnModuleInit {
   private loadTemplate(type: EmailType): string {
     try {
       const filePath = path.join(__dirname, 'templates', `${type}.html`);
-      this.logger.log(`Carregando template de email: ${filePath}`);
       const content = fs.readFileSync(filePath, 'utf-8');
       return content;
     } catch (error) {
@@ -84,7 +78,6 @@ export class EmailService implements OnModuleInit {
     },
   ) {
     debugger;
-    this.logger.log(`Preparando envio de email para ${to} - Tipo: ${type}`);
 
     const subjectMap = {
       'tarefa-vencendo': `📌 Tarefa prestes a vencer: ${variables.tituloTarefa || 'Sem título'}`,
@@ -105,11 +98,9 @@ export class EmailService implements OnModuleInit {
         html,
       };
 
-      this.logger.debug(`Conteúdo do email:\nAssunto: ${mailOptions.subject}\nPara: ${mailOptions.to}\nHTML: ${mailOptions.html}`);
 
       const info = await this.transporter.sendMail(mailOptions);
 
-      this.logger.log(`✅ Email enviado com sucesso para ${to} - MessageID: ${info.messageId}`);
       return info;
     } catch (error) {
       this.logger.error(`❌ Erro ao enviar email para ${to}: ${error.message}`, error.stack);
