@@ -3,7 +3,8 @@
     "version": "1.0.0",
     "scripts": {
         "prebuild": "rimraf dist",
-        "build": "nest build",
+        "build": "nest build && npm run copy:templates",
+        "copy:templates": "cp -r src/email/templates dist/email/templates",
         "start": "nest start",
         "start:dev": "nest start --watch",
         "start:prod": "node dist/main.js"
@@ -20,7 +21,8 @@
         "amqplib": "^0.10.3",
         "class-transformer": "^0.5.1",
         "class-validator": "^0.14.1",
-        "nodemailer": "^6.7.5",
+        "nodemailer": "^6.10.1",
+        "notification-service": "file:",
         "pg": "^8.11.0",
         "reflect-metadata": "^0.1.14",
         "rxjs": "^7.5.5",

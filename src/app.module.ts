@@ -5,6 +5,7 @@ import { typeOrmConfig } from './config/typeorm.config';
 import { NotificationModule } from './notification/notification.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { WebSocketModule } from './websocket/websocket.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { WebSocketModule } from './websocket/websocket.module';
     NotificationModule,
     RabbitMQModule,
     WebSocketModule,
+    EmailModule,
   ],
 })
 export class AppModule {}

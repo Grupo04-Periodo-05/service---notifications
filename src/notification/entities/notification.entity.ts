@@ -10,11 +10,12 @@ export class Notification {
   @Column({ type: 'varchar' })
   type: string;
 
-  @Column({ type: 'varchar', name: 'recipient_id' })
-  recipientId: string;
+  @Column({ type: 'varchar', nullable: true })
+recipientId: string;
+
 
   @Column({ 
-    type: 'jsonb',
+    type: 'jsonb',nullable: true,
     transformer: {
       to: (value: NotificationContent) => JSON.stringify(value),
       from: (value: string) => JSON.parse(value)

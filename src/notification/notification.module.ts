@@ -12,7 +12,7 @@ import { WebSocketModule } from '../websocket/websocket.module';
     RabbitMQModule,
     forwardRef(() => WebSocketModule),
   ],
-  providers: [NotificationService],
+  providers: [NotificationService, RabbitMQModule],
   controllers: [NotificationController],
   exports: [NotificationService],
 })

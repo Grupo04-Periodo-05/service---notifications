@@ -1,33 +1,30 @@
-import { Body, Controller, Get, Param, Patch, Post, HttpCode } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { NotificationService } from './notification.service';
+import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
-import { NotificationResponse } from './dto/notification.response';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
-@ApiTags('notifications')
+@ApiTags('Notificações')
 @Controller('notifications')
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(private readonly rabbitMQService: RabbitMQService) {}
 
   @Post()
-  @HttpCode(201)  // garante status 201
-  @ApiOperation({ summary: 'Create notification' })
-  @ApiResponse({ status: 201, type: NotificationResponse })
-  async create(@Body() createDto: CreateNotificationDto) {
-    return this.notificationService.createNotification(createDto);
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Enviar notificação via WebSocket' })
+  async sendNotification(@Body() createNotificationDto: CreateNotificationDto) {
+    await this.rabbitMQService.publish('email_queue', createNotificationDto);
+    return { message: 'Notificação enviada para a fila com sucesso!' };
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get notification by ID' })
-  @ApiResponse({ status: 200, type: NotificationResponse })
-  async findOne(@Param('id') id: string) {
-    return this.notificationService.findOne(id);
-  }
-
-  @Patch(':id/read')
-  @ApiOperation({ summary: 'Mark as read' })
-  @ApiResponse({ status: 200, type: NotificationResponse })
-  async markAsRead(@Param('id') id: string) {
-    return this.notificationService.markAsRead(id);
+  @Post('email')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Enviar e-mail via RabbitMQ' })
+  async sendEmail(@Body() data: {
+    to: string;
+    type: 'tarefa-vencendo' | 'esqueceu-senha';
+    data: any;
+  }) {
+    await this.rabbitMQService.publish('notification_queue', data);
+    return { message: 'E-mail enviado para a fila com sucesso!' };
   }
 }
